@@ -21,10 +21,17 @@ class FakeStore:
 
     def __init__(self) -> None:
         self.rows: dict[tuple[str, int, str], dict] = {}
+        self.webhook_events: dict[str, dict] = {}
         self._next_id = 1
 
     def init_schema(self) -> None:
         pass
+
+    def record_webhook_event(self, delivery_id, event, action, payload) -> bool:
+        if delivery_id in self.webhook_events:
+            return False
+        self.webhook_events[delivery_id] = {"event": event, "action": action, "payload": payload}
+        return True
 
     def claim_review(self, repo, pr_number, head_sha, delivery_id) -> Claim:
         key = (repo, pr_number, head_sha)
@@ -63,6 +70,7 @@ def fake_store(monkeypatch) -> FakeStore:
     monkeypatch.setattr(db, "claim_review", store.claim_review)
     monkeypatch.setattr(db, "complete_review", store.complete_review)
     monkeypatch.setattr(db, "fail_review", store.fail_review)
+    monkeypatch.setattr(db, "record_webhook_event", store.record_webhook_event)
     return store
 
 

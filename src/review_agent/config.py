@@ -15,6 +15,11 @@ class Settings(BaseSettings):
     github_webhook_secret: SecretStr = SecretStr("")
     anthropic_api_key: SecretStr = SecretStr("")
 
+    # GitHub App credentials (Phase 2). The PEM may be provided as a single
+    # line with \n escapes; it is normalized before use.
+    github_app_id: str = ""
+    github_app_private_key: SecretStr = SecretStr("")
+
     # Must be an adaptive-thinking-capable model (Claude 4.6 family or newer).
     llm_model: str = "claude-opus-4-8"
 

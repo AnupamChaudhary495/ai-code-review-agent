@@ -4,27 +4,40 @@ import logging
 from dataclasses import dataclass
 
 import psycopg
+from psycopg.types.json import Jsonb
 
 from .config import get_settings
 
 logger = logging.getLogger(__name__)
 
-_SCHEMA = """
-CREATE TABLE IF NOT EXISTS reviews (
-    id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    repo TEXT NOT NULL,
-    pr_number INTEGER NOT NULL,
-    head_sha TEXT NOT NULL,
-    status TEXT NOT NULL CHECK (status IN ('in_progress', 'completed', 'failed')),
-    file_path TEXT,
-    review_body TEXT,
-    error TEXT,
-    delivery_id TEXT,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-    UNIQUE (repo, pr_number, head_sha)
-);
-"""
+_SCHEMA_STATEMENTS = (
+    """
+    CREATE TABLE IF NOT EXISTS reviews (
+        id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+        repo TEXT NOT NULL,
+        pr_number INTEGER NOT NULL,
+        head_sha TEXT NOT NULL,
+        status TEXT NOT NULL CHECK (status IN ('in_progress', 'completed', 'failed')),
+        file_path TEXT,
+        review_body TEXT,
+        error TEXT,
+        delivery_id TEXT,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+        UNIQUE (repo, pr_number, head_sha)
+    );
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS webhook_events (
+        id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+        delivery_id TEXT NOT NULL UNIQUE,
+        event TEXT NOT NULL,
+        action TEXT,
+        payload JSONB NOT NULL,
+        received_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+    """,
+)
 
 
 @dataclass
@@ -40,7 +53,8 @@ def _connect() -> psycopg.Connection:
 
 def init_schema() -> None:
     with _connect() as conn:
-        conn.execute(_SCHEMA)
+        for statement in _SCHEMA_STATEMENTS:
+            conn.execute(statement)
     logger.info("database schema ready")
 
 
@@ -109,3 +123,22 @@ def fail_review(review_id: int, error: str) -> None:
             "UPDATE reviews SET status = 'failed', error = %s, updated_at = now() WHERE id = %s",
             (error, review_id),
         )
+
+
+def record_webhook_event(delivery_id: str, event: str, action: str | None, payload: object) -> bool:
+    """Persist a webhook delivery keyed by GitHub's delivery GUID.
+
+    Returns False when the delivery ID was already stored — a replayed or
+    redelivered event is a no-op enforced by the unique constraint.
+    """
+    with _connect() as conn:
+        row = conn.execute(
+            """
+            INSERT INTO webhook_events (delivery_id, event, action, payload)
+            VALUES (%s, %s, %s, %s)
+            ON CONFLICT (delivery_id) DO NOTHING
+            RETURNING id
+            """,
+            (delivery_id, event, action, Jsonb(payload)),
+        ).fetchone()
+    return row is not None

@@ -8,7 +8,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request, Response
 
-from . import db, webhook
+from . import db, ingest, webhook
 from .config import get_settings
 from .logging_setup import configure_logging, correlation_id_var
 
@@ -25,6 +25,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
 app = FastAPI(title="AI Code Review Agent", version="0.1.0", lifespan=lifespan)
 app.include_router(webhook.router)
+app.include_router(ingest.router)
 
 
 @app.middleware("http")

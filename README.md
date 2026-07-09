@@ -67,13 +67,42 @@ curl -s http://localhost:8000/webhook/github \
   -d "$BODY"
 ```
 
+## Phase 2: webhook ingestion & GitHub App auth
+
+`POST /webhooks/github` is the ingestion endpoint: it verifies the HMAC
+signature, dedupes by GitHub's `X-GitHub-Delivery` GUID (unique constraint on
+`webhook_events.delivery_id` — a replayed delivery is exactly one row, always),
+persists the raw payload as JSONB, and returns 200 immediately. No processing
+is attached yet; that arrives in Phase 3+.
+
+`review_agent/github/auth.py` + `client.py` implement GitHub App
+authentication: a short-lived RS256 app JWT is exchanged for an installation
+access token, which is cached per installation and refreshed before expiry.
+
+### Registering the GitHub App (one-time, manual)
+
+GitHub → Settings → Developer settings → GitHub Apps → **New GitHub App**:
+
+1. Webhook URL: `https://<public-url>/webhooks/github`; webhook secret: the
+   value of `GITHUB_WEBHOOK_SECRET`.
+2. Repository permissions — least privilege, nothing speculative:
+   - **Contents: Read-only**
+   - **Pull requests: Read and write**
+   - **Metadata: Read-only** (mandatory default)
+3. Subscribe to events: **Pull request**.
+4. After creation: copy the App ID into `GITHUB_APP_ID`, generate a private
+   key and put the PEM into `GITHUB_APP_PRIVATE_KEY` (never commit it), then
+   install the App on the repos you want reviewed.
+
 ## Configuration
 
 | Env var | Required | Description |
 | --- | --- | --- |
 | `GITHUB_WEBHOOK_SECRET` | yes | Shared secret for webhook signature verification. Endpoint returns 503 until set. |
 | `ANTHROPIC_API_KEY` | yes* | API key for the review LLM call. (*Optional if the SDK can resolve credentials another way.) |
-| `GITHUB_TOKEN` | for private repos | PAT with repo read access. Public repos work unauthenticated at low rate limits. |
+| `GITHUB_TOKEN` | for private repos | PAT with repo read access (Phase 1 slice). Public repos work unauthenticated at low rate limits. |
+| `GITHUB_APP_ID` | for App auth | GitHub App ID (Phase 2). |
+| `GITHUB_APP_PRIVATE_KEY` | for App auth | GitHub App private key PEM; `\n` escapes allowed (Phase 2). |
 | `LLM_MODEL` | no | Defaults to `claude-opus-4-8`. Must support adaptive thinking (Claude 4.6+). |
 | `DATABASE_URL` | no | Defaults to local PostgreSQL; overridden in docker-compose. |
 | `LOG_LEVEL` | no | Defaults to `INFO`. |
@@ -104,5 +133,8 @@ HTTP error responses carry a generic message only.
   synchronously inside the webhook request, which can exceed GitHub's 10s
   webhook timeout; GitHub marks the delivery as timed out but the review
   still completes and duplicates are absorbed by idempotency
-- GitHub App auth, rate-limit retries (Phases 2, 9)
+- Rate-limit retries, richer GitHub client (later phases)
+- Wiring ingested `webhook_events` to the review pipeline (Phase 3+) — the
+  Phase 1 slice endpoint (`/webhook/github`) and the Phase 2 ingestion
+  endpoint (`/webhooks/github`) coexist until then
 - Redis, agent memory, multi-agent anything
