@@ -94,6 +94,32 @@ GitHub → Settings → Developer settings → GitHub Apps → **New GitHub App*
    key and put the PEM into `GITHUB_APP_PRIVATE_KEY` (never commit it), then
    install the App on the repos you want reviewed.
 
+## Phase 3: diff acquisition & parsing
+
+Standalone module, not yet wired into the webhook flow:
+
+- `review_agent/github/diff_fetcher.py` — lists **all** changed files of a PR
+  (paginated), authenticated with an **installation token** via
+  `github/auth.py`. GitHub serves at most 3000 files per PR; the fetcher
+  compares against the PR's `changed_files` count and sets `truncated=True`
+  instead of silently dropping files.
+- `review_agent/diffing/` — `parser.py` turns each file's unified-diff patch
+  into typed `FileChange`/`Hunk` objects (`models.py`); `classify.py` adds
+  language detection and a size tier (small ≤50 / medium ≤300 / large ≤1500 /
+  huge >1500 changed lines) used for cost control downstream.
+
+Inspect any PR the App is installed on:
+
+```bash
+python scripts/inspect_pr.py owner/repo 123          # table
+python scripts/inspect_pr.py owner/repo 123 --json   # full structured dump
+```
+
+**Auth split, explicit:** the only remaining PAT consumer is the Phase 1 demo
+endpoint (`/webhook/github` → `review_agent/github_client.py`, marked LEGACY).
+Everything else authenticates as the GitHub App. The PAT path is deleted when
+the slice endpoint is rewired onto the ingestion pipeline in a later phase.
+
 ## Configuration
 
 | Env var | Required | Description |

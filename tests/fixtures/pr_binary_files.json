@@ -1,0 +1,13 @@
+[
+ {
+  "sha": "f37764b1f7606623616dcdc169cc858273ea2d94",
+  "filename": "image.png",
+  "status": "added",
+  "additions": 0,
+  "deletions": 0,
+  "changes": 0,
+  "blob_url": "https://github.com/AnupamChaudhary495/review-agent-webhook-test/blob/b952fa93b7e7857cc3895d7c5646492d91fe4714/image.png",
+  "raw_url": "https://github.com/AnupamChaudhary495/review-agent-webhook-test/raw/b952fa93b7e7857cc3895d7c5646492d91fe4714/image.png",
+  "contents_url": "https://api.github.com/repos/AnupamChaudhary495/review-agent-webhook-test/contents/image.png?ref=b952fa93b7e7857cc3895d7c5646492d91fe4714"
+ }
+]

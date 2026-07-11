@@ -96,6 +96,18 @@ def test_fetch_installation_token_exchanges_jwt(app_creds):
     assert result.expires_at > time.time() + 3000
 
 
+def test_fetch_repo_installation_uses_app_jwt(app_creds):
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.headers["Authorization"].startswith("Bearer ")
+        assert str(request.url).endswith("/repos/octo/demo/installation")
+        return httpx.Response(200, json={"id": 5551212})
+
+    installation_id = client.fetch_repo_installation(
+        make_app_jwt(), "octo/demo", transport=httpx.MockTransport(handler)
+    )
+    assert installation_id == 5551212
+
+
 def test_provider_caches_token_until_near_expiry(app_creds):
     calls: list[int] = []
 

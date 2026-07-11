@@ -1,4 +1,11 @@
-"""Minimal GitHub REST client: fetch the first reviewable file diff of a PR."""
+"""LEGACY (Phase 1 slice only): PAT-authenticated single-file diff fetch.
+
+This is the last remaining consumer of the personal-access-token auth path;
+it exists solely to keep the Phase 1 demo endpoint (/webhook/github) working.
+All new GitHub access authenticates as the GitHub App via
+review_agent.github.auth / .client — see github/diff_fetcher.py. This module
+dies when the slice endpoint is rewired onto the ingestion pipeline.
+"""
 
 import logging
 from dataclasses import dataclass

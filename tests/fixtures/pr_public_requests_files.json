@@ -1,0 +1,14 @@
+[
+ {
+  "sha": "fcee37780794fd3fb0c69b4ce3cabf7e43b8fef2",
+  "filename": "src/requests/auth.py",
+  "status": "modified",
+  "additions": 15,
+  "deletions": 2,
+  "changes": 17,
+  "blob_url": "https://github.com/psf/requests/blob/6728d86a65224334af44a40f4eb0be70d74c1dc6/src%2Frequests%2Fauth.py",
+  "raw_url": "https://github.com/psf/requests/raw/6728d86a65224334af44a40f4eb0be70d74c1dc6/src%2Frequests%2Fauth.py",
+  "contents_url": "https://api.github.com/repos/psf/requests/contents/src%2Frequests%2Fauth.py?ref=6728d86a65224334af44a40f4eb0be70d74c1dc6",
+  "patch": "@@ -166,6 +166,19 @@ def build_digest_header(self, method: str, url: str) -> str | None:\n         opaque = self._thread_local.chal.get(\"opaque\")\n         hash_utf8 = None\n \n+        # Ensure username and password are strings for digest calculation.\n+        # If bytes, decode using UTF-8.\n+        username = (\n+            self.username\n+            if isinstance(self.username, str)\n+            else self.username.decode(\"utf-8\")\n+        )\n+        password = (\n+            self.password\n+            if isinstance(self.password, str)\n+            else self.password.decode(\"utf-8\")\n+        )\n+\n         if algorithm is None:\n             _algorithm = \"MD5\"\n         else:\n@@ -218,7 +231,7 @@ def KD(s: str, d: str) -> str:\n         if p_parsed.query:\n             path += f\"?{p_parsed.query}\"\n \n-        A1 = f\"{self.username}:{realm}:{self.password}\"\n+        A1 = f\"{username}:{realm}:{password}\"\n         A2 = f\"{method}:{path}\"\n \n         HA1 = hash_utf8(A1)\n@@ -251,7 +264,7 @@ def KD(s: str, d: str) -> str:\n \n         # XXX should the partial digests be encoded too?\n         base = (\n-            f'username=\"{self.username}\", realm=\"{realm}\", nonce=\"{nonce}\", '\n+            f'username=\"{username}\", realm=\"{realm}\", nonce=\"{nonce}\", '\n             f'uri=\"{path}\", response=\"{respdig}\"'\n         )\n         if opaque:"
+ }
+]

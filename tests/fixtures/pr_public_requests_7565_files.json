@@ -1,0 +1,14 @@
+[
+ {
+  "sha": "94bdb4e56f4970d148dfd8dc88a81cafcb116249",
+  "filename": "src/requests/adapters.py",
+  "status": "modified",
+  "additions": 9,
+  "deletions": 5,
+  "changes": 14,
+  "blob_url": "https://github.com/psf/requests/blob/97e629e2490de7006122c150492a27784c2b3d82/src%2Frequests%2Fadapters.py",
+  "raw_url": "https://github.com/psf/requests/raw/97e629e2490de7006122c150492a27784c2b3d82/src%2Frequests%2Fadapters.py",
+  "contents_url": "https://api.github.com/repos/psf/requests/contents/src%2Frequests%2Fadapters.py?ref=97e629e2490de7006122c150492a27784c2b3d82",
+  "patch": "@@ -8,6 +8,7 @@\n \n from __future__ import annotations\n \n+import errno\n import os.path\n import socket  # noqa: F401\n import typing\n@@ -353,13 +354,16 @@ def cert_verify(\n                 conn.cert_file = cert\n                 conn.key_file = None\n             if conn.cert_file and not os.path.exists(conn.cert_file):\n-                raise OSError(\n-                    f\"Could not find the TLS certificate file, \"\n-                    f\"invalid path: {conn.cert_file}\"\n+                raise FileNotFoundError(\n+                    os.strerror(errno.ENOENT),\n+                    \"Could not find the TLS certificate file, invalid path\",\n+                    conn.cert_file,\n                 )\n             if conn.key_file and not os.path.exists(conn.key_file):\n-                raise OSError(\n-                    f\"Could not find the TLS key file, invalid path: {conn.key_file}\"\n+                raise FileNotFoundError(\n+                    os.strerror(errno.ENOENT),\n+                    \"Could not find the TLS key file, invalid path\",\n+                    conn.key_file,\n                 )\n \n     def build_response(self, req: PreparedRequest, resp: Any) -> Response:"
+ }
+]

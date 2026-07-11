@@ -1,0 +1,14 @@
+[
+ {
+  "sha": "2cd8a0c5120829ec06437efcab6a4ca7bc9abe76",
+  "filename": "src/requests/_types.py",
+  "status": "modified",
+  "additions": 1,
+  "deletions": 1,
+  "changes": 2,
+  "blob_url": "https://github.com/psf/requests/blob/e05d56bd707769f8cc0e3db17c66c3f23b15c4ee/src%2Frequests%2F_types.py",
+  "raw_url": "https://github.com/psf/requests/raw/e05d56bd707769f8cc0e3db17c66c3f23b15c4ee/src%2Frequests%2F_types.py",
+  "contents_url": "https://api.github.com/repos/psf/requests/contents/src%2Frequests%2F_types.py?ref=e05d56bd707769f8cc0e3db17c66c3f23b15c4ee",
+  "patch": "@@ -149,7 +149,7 @@ class _ValidatedRequest(PreparedRequest):\n         | float\n         | str\n         | Sequence[\"JsonType\"]\n-        | Mapping[str, \"JsonType\"]\n+        | Mapping[str, Any]\n     )\n \n     # TypedDicts for Unpack kwargs (PEP 692)"
+ }
+]

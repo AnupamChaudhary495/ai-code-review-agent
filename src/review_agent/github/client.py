@@ -36,5 +36,22 @@ def fetch_installation_token(
     return InstallationToken(token=data["token"], expires_at=expires_at)
 
 
+def fetch_repo_installation(
+    app_jwt: str, repo: str, transport: httpx.BaseTransport | None = None
+) -> int:
+    """Look up the App's installation ID for a repository ("owner/name")."""
+    with httpx.Client(timeout=30, transport=transport) as client:
+        response = client.get(
+            f"{API_BASE}/repos/{repo}/installation",
+            headers={
+                "Authorization": f"Bearer {app_jwt}",
+                "Accept": "application/vnd.github+json",
+                "X-GitHub-Api-Version": "2022-11-28",
+            },
+        )
+        response.raise_for_status()
+        return int(response.json()["id"])
+
+
 # Process-wide provider: the entry point for authenticated API calls as the App.
 token_provider = InstallationTokenProvider(fetch_installation_token)
