@@ -34,6 +34,20 @@ class Hunk:
     added: int
     removed: int
 
+    def new_lines(self) -> set[int]:
+        """New-file line numbers this hunk covers (added + context lines).
+
+        GitHub only accepts inline PR comments on lines present in the diff;
+        this is the anchor set delivery uses to decide inline vs. body placement.
+        """
+        numbers: set[int] = set()
+        current = self.new_start
+        for line in self.lines:
+            if line.startswith(("+", " ")) or line == "":
+                numbers.add(current)
+                current += 1
+        return numbers
+
 
 @dataclass
 class FileChange:

@@ -4,6 +4,8 @@ Events land in the webhook_events table keyed by GitHub's delivery GUID;
 a replayed delivery is a provable no-op (unique constraint, one row).
 """
 
+import hashlib
+import hmac
 import json
 import logging
 
@@ -13,10 +15,17 @@ from starlette.concurrency import run_in_threadpool
 
 from . import db
 from .config import get_settings
-from .webhook import verify_signature
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
+
+
+def verify_signature(secret: str, body: bytes, signature_header: str | None) -> bool:
+    """Verify GitHub's X-Hub-Signature-256 header (HMAC SHA-256, constant-time)."""
+    if not signature_header:
+        return False
+    expected = "sha256=" + hmac.new(secret.encode(), body, hashlib.sha256).hexdigest()
+    return hmac.compare_digest(expected, signature_header)
 
 
 @router.post("/webhooks/github")

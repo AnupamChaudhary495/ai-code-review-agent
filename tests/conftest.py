@@ -6,23 +6,20 @@ from fastapi.testclient import TestClient
 
 from review_agent import db
 from review_agent.config import get_settings
-from review_agent.db import Claim
 from review_agent.main import app
 
 TEST_SECRET = "test-webhook-secret"
 
 
 class FakeStore:
-    """In-memory stand-in for db.py with the same claim semantics.
+    """In-memory stand-in for db.py's webhook-event persistence.
 
-    The real SQL implementation is exercised by tests/test_store_integration.py
+    The real SQL implementation is exercised by tests/test_ingest_integration.py
     against a live PostgreSQL.
     """
 
     def __init__(self) -> None:
-        self.rows: dict[tuple[str, int, str], dict] = {}
         self.webhook_events: dict[str, dict] = {}
-        self._next_id = 1
 
     def init_schema(self) -> None:
         pass
@@ -33,43 +30,11 @@ class FakeStore:
         self.webhook_events[delivery_id] = {"event": event, "action": action, "payload": payload}
         return True
 
-    def claim_review(self, repo, pr_number, head_sha, delivery_id) -> Claim:
-        key = (repo, pr_number, head_sha)
-        row = self.rows.get(key)
-        if row is None:
-            row = {"id": self._next_id, "status": "in_progress", "review_body": None}
-            self._next_id += 1
-            self.rows[key] = row
-            return Claim("claimed", row["id"])
-        if row["status"] == "failed":
-            row["status"] = "in_progress"
-            return Claim("claimed", row["id"])
-        if row["status"] == "completed":
-            return Claim("duplicate_completed", row["id"], row["review_body"])
-        return Claim("duplicate_in_progress", row["id"])
-
-    def complete_review(self, review_id, file_path, review_body) -> None:
-        row = self._by_id(review_id)
-        row.update(status="completed", file_path=file_path, review_body=review_body)
-
-    def fail_review(self, review_id, error) -> None:
-        row = self._by_id(review_id)
-        row.update(status="failed", error=error)
-
-    def _by_id(self, review_id) -> dict:
-        for row in self.rows.values():
-            if row["id"] == review_id:
-                return row
-        raise KeyError(review_id)
-
 
 @pytest.fixture
 def fake_store(monkeypatch) -> FakeStore:
     store = FakeStore()
     monkeypatch.setattr(db, "init_schema", store.init_schema)
-    monkeypatch.setattr(db, "claim_review", store.claim_review)
-    monkeypatch.setattr(db, "complete_review", store.complete_review)
-    monkeypatch.setattr(db, "fail_review", store.fail_review)
     monkeypatch.setattr(db, "record_webhook_event", store.record_webhook_event)
     return store
 
@@ -77,7 +42,6 @@ def fake_store(monkeypatch) -> FakeStore:
 @pytest.fixture
 def settings_env(monkeypatch):
     monkeypatch.setenv("GITHUB_WEBHOOK_SECRET", TEST_SECRET)
-    monkeypatch.setenv("GITHUB_TOKEN", "test-token")
     monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key")
     get_settings.cache_clear()
     yield

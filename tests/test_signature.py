@@ -1,7 +1,7 @@
 import hashlib
 import hmac
 
-from review_agent.webhook import verify_signature
+from review_agent.ingest import verify_signature
 
 BODY = b'{"action": "opened"}'
 SECRET = "s3cret"

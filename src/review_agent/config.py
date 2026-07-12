@@ -11,7 +11,6 @@ class Settings(BaseSettings):
 
     # Secrets default to empty so the service can boot (e.g. /health) without them;
     # the webhook endpoint refuses to operate until github_webhook_secret is set.
-    github_token: SecretStr = SecretStr("")
     github_webhook_secret: SecretStr = SecretStr("")
     anthropic_api_key: SecretStr = SecretStr("")
 
