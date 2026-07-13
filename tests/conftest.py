@@ -5,10 +5,25 @@ import pytest
 from fastapi.testclient import TestClient
 
 from review_agent import db
-from review_agent.config import get_settings
+from review_agent.config import Settings, get_settings
 from review_agent.main import app
 
 TEST_SECRET = "test-webhook-secret"
+
+
+@pytest.fixture(autouse=True)
+def _hermetic_settings(monkeypatch):
+    """Keep tests independent of a developer's local .env.
+
+    Once the GitHub App is configured, .env holds real credentials; without
+    this, tests that assert credentials are *absent* would read them from .env
+    and fail locally while passing in CI (which has no .env). Disable env-file
+    loading for the whole test session; env vars set via monkeypatch still win.
+    """
+    monkeypatch.setitem(Settings.model_config, "env_file", None)
+    get_settings.cache_clear()
+    yield
+    get_settings.cache_clear()
 
 
 class FakeStore:
