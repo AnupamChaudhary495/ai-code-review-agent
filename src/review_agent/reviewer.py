@@ -23,6 +23,7 @@ from .schemas.finding import Finding, ReviewFindings
 logger = logging.getLogger(__name__)
 
 PROMPT_VERSION = "bug_review_v1"
+SECURITY_PROMPT_VERSION = "security_review_v1"
 # Adaptive thinking counts toward max_tokens; leave headroom so the JSON
 # output never gets truncated by a long thinking pass.
 _MAX_TOKENS = 16000
@@ -118,13 +119,18 @@ def _call_model(
     return response, text
 
 
-def review_file(change: FileChange) -> ReviewResult:
-    """Run the bug-review prompt over one FileChange."""
+def review_file(change: FileChange, prompt_version: str = PROMPT_VERSION) -> ReviewResult:
+    """Run a review prompt over one FileChange.
+
+    The prompt version selects the concern (bug review, security review, ...).
+    All resilience — the single repair retry, the untrusted-diff boundary, the
+    refusal handling — is shared across concerns; only the system prompt differs.
+    """
     if not change.hunks:
         raise ValueError(f"{change.path} has no reviewable hunks (binary or omitted patch)")
 
     settings = get_settings()
-    system_prompt = load_prompt()
+    system_prompt = load_prompt(prompt_version)
     user_content = f"<diff>\n{render_change(change)}\n</diff>"
     client = anthropic.Anthropic(
         api_key=settings.anthropic_api_key.get_secret_value() or None,
@@ -171,14 +177,24 @@ def review_file(change: FileChange) -> ReviewResult:
             "file": change.path,
             "findings": len(findings),
             "repair_used": repair_used,
-            "prompt_version": PROMPT_VERSION,
+            "prompt_version": prompt_version,
         },
     )
     return ReviewResult(
         findings=findings,
         model=response.model,
-        prompt_version=PROMPT_VERSION,
+        prompt_version=prompt_version,
         input_tokens=input_tokens,
         output_tokens=output_tokens,
         repair_used=repair_used,
     )
+
+
+def review_security(change: FileChange) -> ReviewResult:
+    """Run the security-review prompt over one FileChange (LLM pass only).
+
+    The deterministic secret scan (agent/tools/secret_scan.py) runs separately
+    and is merged in by the security node, so high-confidence secrets never
+    depend on this model pass succeeding.
+    """
+    return review_file(change, prompt_version=SECURITY_PROMPT_VERSION)

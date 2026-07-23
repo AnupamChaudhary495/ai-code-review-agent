@@ -1,10 +1,13 @@
 """The multi-file review StateGraph: fan out per eligible file, gather results.
 
-    START -> router -> (fan_out: one Send per eligible file) -> bug_analysis -> END
+    START -> router -> (fan_out: one Send to EACH analysis node per file) -> END
+                        ├─> bug_analysis
+                        └─> security_analysis
 
-The router records skipped files and dispatches eligible ones; each
-bug_analysis branch runs concurrently and contributes one result through the
-`results` reducer. One graph invocation yields one result per file.
+The router records skipped files and dispatches eligible ones to both analysis
+nodes; every branch runs concurrently and contributes one result through the
+`results` reducer. One eligible file therefore yields two results (bug +
+security); a skipped file yields one.
 """
 
 import logging
@@ -15,6 +18,7 @@ from ..diffing.models import FileChange
 from ..github.diff_fetcher import PullRequestDiff
 from .nodes.bug_analysis import analyze_file
 from .nodes.router import fan_out, route
+from .nodes.security_analysis import analyze_security
 from .state import FileReviewResult, ReviewState
 
 logger = logging.getLogger(__name__)
@@ -25,11 +29,14 @@ def build_graph():
     builder = StateGraph(ReviewState)
     builder.add_node("router", route)
     builder.add_node("bug_analysis", analyze_file)
+    builder.add_node("security_analysis", analyze_security)
 
     builder.add_edge(START, "router")
-    # Conditional fan-out: router -> N x bug_analysis (or straight to END if none).
-    builder.add_conditional_edges("router", fan_out, ["bug_analysis"])
+    # Conditional fan-out: router -> {bug_analysis, security_analysis} per file
+    # (or straight to END if no file is eligible).
+    builder.add_conditional_edges("router", fan_out, ["bug_analysis", "security_analysis"])
     builder.add_edge("bug_analysis", END)
+    builder.add_edge("security_analysis", END)
     return builder.compile()
 
 

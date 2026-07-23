@@ -59,7 +59,7 @@ def route(state: ReviewState) -> dict[str, list[FileReviewResult]]:
     fanned out to bug-analysis by `fan_out` below.
     """
     skipped = [
-        FileReviewResult(path=f.path, status="skipped", reason=skip_reason(f))
+        FileReviewResult(path=f.path, status="skipped", source="skipped", reason=skip_reason(f))
         for f in state["diff_files"]
         if not is_eligible(f)
     ]
@@ -68,10 +68,20 @@ def route(state: ReviewState) -> dict[str, list[FileReviewResult]]:
     return {"results": skipped}
 
 
+# Analysis nodes fanned out per eligible file. Each name here becomes one Send
+# per file; adding a node (Phase 7 performance) means adding it to this tuple.
+_ANALYSIS_NODES = ("bug_analysis", "security_analysis")
+
+
 def fan_out(state: ReviewState) -> list[Send]:
-    """Conditional edge: one Send to bug_analysis per eligible file.
+    """Conditional edge: one Send to EACH analysis node per eligible file.
 
     An empty list is valid — when no file is eligible the graph simply has no
     fan-out branches and proceeds to completion with only skipped results.
     """
-    return [Send("bug_analysis", {"file": f}) for f in state["diff_files"] if is_eligible(f)]
+    return [
+        Send(node, {"file": f})
+        for f in state["diff_files"]
+        if is_eligible(f)
+        for node in _ANALYSIS_NODES
+    ]

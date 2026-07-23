@@ -22,6 +22,13 @@ class Finding(BaseModel):
     suggestion: str | None = Field(
         default=None, description="Concrete fix, as code or a short instruction"
     )
+    # Optional CWE identifier for security findings (e.g. "CWE-89" for SQL
+    # injection). Left None for non-security findings. Added to the existing
+    # schema rather than forking a SecurityFinding — structurally it is the
+    # same object with one extra, optional attribute.
+    cwe: str | None = Field(
+        default=None, description="CWE identifier for security findings, e.g. CWE-89"
+    )
 
 
 class ReviewFindings(BaseModel):

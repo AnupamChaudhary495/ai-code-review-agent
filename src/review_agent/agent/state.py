@@ -15,10 +15,17 @@ from ..schemas.finding import Finding
 
 @dataclass
 class FileReviewResult:
-    """The outcome of analysing one file — always produced, even on failure."""
+    """The outcome of one analysis pass over one file — always produced.
+
+    A file can yield several results: one per analysis node (bug, security),
+    plus a single "skipped" result if it was ineligible. `source` tags which
+    pass produced it so downstream (Phase 8) can group them; Phase 6 does no
+    aggregation or dedup between passes yet.
+    """
 
     path: str
     status: str  # "reviewed" | "skipped" | "unavailable"
+    source: str = "bug"  # "bug" | "security" | "skipped"
     findings: list[Finding] = field(default_factory=list)
     reason: str | None = None  # why skipped, or why unavailable
     error_count: int = 0  # transient failures seen before this result was produced
@@ -27,8 +34,8 @@ class FileReviewResult:
     output_tokens: int = 0
 
 
-class BugAnalysisInput(TypedDict):
-    """Per-file payload delivered to a fanned-out bug-analysis node via Send."""
+class AnalysisInput(TypedDict):
+    """Per-file payload delivered to a fanned-out analysis node via Send."""
 
     file: FileChange
 
