@@ -1,0 +1,38 @@
+[
+ {
+  "sha": "40db92e5ee9af37209b6eb00604f63965f7b2ab6",
+  "filename": "perf/formatting.py",
+  "status": "added",
+  "additions": 2,
+  "deletions": 0,
+  "changes": 2,
+  "blob_url": "https://github.com/AnupamChaudhary495/review-agent-webhook-test/blob/dcdb60a76c1513cac1bdbe818fdc3e6517c8b36b/perf%2Fformatting.py",
+  "raw_url": "https://github.com/AnupamChaudhary495/review-agent-webhook-test/raw/dcdb60a76c1513cac1bdbe818fdc3e6517c8b36b/perf%2Fformatting.py",
+  "contents_url": "https://api.github.com/repos/AnupamChaudhary495/review-agent-webhook-test/contents/perf%2Fformatting.py?ref=dcdb60a76c1513cac1bdbe818fdc3e6517c8b36b",
+  "patch": "@@ -0,0 +1,2 @@\n+def format_name(first, last):\n+    return f\"{last.strip().title()}, {first.strip().title()}\""
+ },
+ {
+  "sha": "aacc8487f91ccbd6ff46bbaf94e49eac142ed641",
+  "filename": "perf/n_plus_one.py",
+  "status": "added",
+  "additions": 7,
+  "deletions": 0,
+  "changes": 7,
+  "blob_url": "https://github.com/AnupamChaudhary495/review-agent-webhook-test/blob/dcdb60a76c1513cac1bdbe818fdc3e6517c8b36b/perf%2Fn_plus_one.py",
+  "raw_url": "https://github.com/AnupamChaudhary495/review-agent-webhook-test/raw/dcdb60a76c1513cac1bdbe818fdc3e6517c8b36b/perf%2Fn_plus_one.py",
+  "contents_url": "https://api.github.com/repos/AnupamChaudhary495/review-agent-webhook-test/contents/perf%2Fn_plus_one.py?ref=dcdb60a76c1513cac1bdbe818fdc3e6517c8b36b",
+  "patch": "@@ -0,0 +1,7 @@\n+def order_totals(user_ids, db):\n+    totals = {}\n+    for uid in user_ids:\n+        user = db.session.query(User).get(uid)\n+        orders = db.session.query(Order).filter(Order.user_id == uid).all()\n+        totals[user.name] = sum(o.amount for o in orders)\n+    return totals"
+ },
+ {
+  "sha": "e915ec96af031d2419f7e28a05920d5bd9762f80",
+  "filename": "perf/quadratic.py",
+  "status": "added",
+  "additions": 7,
+  "deletions": 0,
+  "changes": 7,
+  "blob_url": "https://github.com/AnupamChaudhary495/review-agent-webhook-test/blob/dcdb60a76c1513cac1bdbe818fdc3e6517c8b36b/perf%2Fquadratic.py",
+  "raw_url": "https://github.com/AnupamChaudhary495/review-agent-webhook-test/raw/dcdb60a76c1513cac1bdbe818fdc3e6517c8b36b/perf%2Fquadratic.py",
+  "contents_url": "https://api.github.com/repos/AnupamChaudhary495/review-agent-webhook-test/contents/perf%2Fquadratic.py?ref=dcdb60a76c1513cac1bdbe818fdc3e6517c8b36b",
+  "patch": "@@ -0,0 +1,7 @@\n+def find_duplicate_keys(records):\n+    duplicates = []\n+    for i in range(len(records)):\n+        for j in range(len(records)):\n+            if i != j and records[i].key == records[j].key:\n+                duplicates.append(records[i].key)\n+    return duplicates"
+ }
+]

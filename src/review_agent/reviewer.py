@@ -24,6 +24,7 @@ logger = logging.getLogger(__name__)
 
 PROMPT_VERSION = "bug_review_v1"
 SECURITY_PROMPT_VERSION = "security_review_v1"
+PERFORMANCE_PROMPT_VERSION = "performance_review_v1"
 # Adaptive thinking counts toward max_tokens; leave headroom so the JSON
 # output never gets truncated by a long thinking pass.
 _MAX_TOKENS = 16000
@@ -198,3 +199,8 @@ def review_security(change: FileChange) -> ReviewResult:
     depend on this model pass succeeding.
     """
     return review_file(change, prompt_version=SECURITY_PROMPT_VERSION)
+
+
+def review_performance(change: FileChange) -> ReviewResult:
+    """Run the performance-review prompt over one FileChange."""
+    return review_file(change, prompt_version=PERFORMANCE_PROMPT_VERSION)
