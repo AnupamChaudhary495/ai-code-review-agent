@@ -188,7 +188,7 @@ deterministic scanner catches 100% of planted secrets with zero false
 criticals on a clean baseline. (Live LLM security detection rate pending an
 API key.)
 
-## Phase 7 — Performance Analysis Module 🚧 in progress
+## Phase 7 — Performance Analysis Module ✅ done
 
 **Goal:** Catch what reading rarely catches — N+1 queries, needless loops,
 obvious algorithmic blowups — as a **third** parallel node, without sending
@@ -213,20 +213,47 @@ clean baseline stays silent; the risk filter achieves ≥40% fewer performance-
 node invocations than sending every eligible file, reported as a measured
 percentage.
 
-## Phase 8 — Report Generation & Finding Aggregation ⬜ pending
+## Phase 8 — Report Generation & Finding Aggregation ✅ done
 
 **Goal:** Turn the per-node, per-file findings into one report a human wants
 to read.
 
-- Aggregate and dedup bug/security/performance findings across nodes on the
-  same file/line (the dedup deliberately deferred from Phase 6).
-- Structured report schema: summary, per-file findings grouped by
-  severity/category, plain-language "what changed".
-- Output formats: Markdown (for GitHub) and JSON (for API/storage).
-- Deterministic, template-based rendering — not another LLM call.
+- `schemas/review_report.py`: `ReviewReport` — summary, verdict, stats, and
+  per-file `FileReport`s each holding findings sorted worst-severity-first.
+  `ReportFinding` **subclasses `Finding`**, so anything already accepting
+  `list[Finding]` (notably `github.delivery.post_review`) takes these
+  unchanged — Phase 9 wires, it does not migrate.
+- `reporting/synthesis.py`: a **plain function**, not a graph node — there is
+  no fan-out and nothing to parallelise, so a node would buy state plumbing
+  and a reducer entry for nothing. Called after `graph.review_files()` returns.
+- Cross-pass dedup (deferred from Phase 6): bucket on exact file+line, cluster
+  on message **overlap coefficient** ≥ 0.6 with a 3-shared-token floor and a
+  negation-parity guard. Category is deliberately *not* part of the identity
+  test — merging the bug pass and the security pass on one SQL injection is
+  the point. Worst severity wins; `suggestion`/`cwe` are backfilled from the
+  merged-away findings; `sources` and `duplicates_merged` keep the merge
+  auditable in the rendered output.
+- Jaccard was implemented first and **replaced on measurement** — it scored one
+  real cross-pass SQL-injection pair at 0.55 purely because the security pass
+  writes longer messages. Pinned by a regression test.
+- Two deterministic renderers, no LLM in either: Markdown (severity tally,
+  per-file sections, collapsed clean/unreviewed/coverage detail, merge
+  provenance) and JSON (the schema *is* the contract — no reshaping, which is
+  how the two would drift).
+- Per-file "what changed" is a restatement of Phase 3 diff metadata
+  (change type, ±lines, language, binary/patch-omitted), never an inference;
+  with no metadata it degrades to "Change details unavailable."
+- ADR: `docs/design-decisions/0003-cross-pass-finding-dedup.md`, including the
+  deliberate under-merge bias and its cost.
+- **Not** in scope, and not touched: delivery, webhook wiring, `ingest.py`.
 
-**Exit criteria:** A full multi-node PR review renders as a clean Markdown
-report suitable for posting as-is.
+**Exit criteria:** ✅ A 13-file run over the golden-set corpus (11 reviewed,
+1 binary, 1 patch-omitted, one deliberately failed security pass) collapses 35
+raw node results and 13 raw findings into **one** `ReviewReport` with 11
+findings, 2 duplicates merged, verdict `blocking` — rendered as ~5 KB of
+Markdown that was read end-to-end and posted in the Phase 8 write-up. 48 tests
+cover the dedup rule in both directions, Markdown well-formedness, and
+Markdown/JSON agreement on every finding.
 
 ## Phase 9 — Webhook-Triggered Automation & Async Processing ⬜ pending
 
