@@ -41,11 +41,16 @@ def pg_client(monkeypatch):
     from review_agent.config import get_settings
 
     get_settings.cache_clear()
-    from review_agent import db
+    from review_agent import db, pipeline
+
+    # Since Phase 9 this payload (pull_request/opened) schedules a review, and
+    # TestClient runs background tasks for real. Without this stub the job
+    # reaches out to GitHub — it fails safely, but a test must not try.
+    monkeypatch.setattr(pipeline, "run_review", lambda *a, **k: None)
 
     db.init_schema()
     with db._connect() as conn:
-        conn.execute("TRUNCATE webhook_events RESTART IDENTITY")
+        conn.execute("TRUNCATE webhook_events, reviews RESTART IDENTITY")
 
     from review_agent.main import app
 
@@ -75,7 +80,10 @@ def test_replayed_delivery_persists_exactly_one_row(pg_client):
     second = post_event(client, delivery=delivery, signature=_sig(PAYLOAD))
     third = post_event(client, delivery=delivery, signature=_sig(PAYLOAD))
 
-    assert first.json()["status"] == "stored"
+    # Since Phase 9 a pull_request/opened delivery also schedules a review, so
+    # the first answer is 202; the redeliveries are still provable no-ops.
+    assert first.status_code == 202
+    assert first.json()["status"] == "review_scheduled"
     assert second.json()["status"] == "duplicate"
     assert third.json()["status"] == "duplicate"
 
@@ -86,8 +94,11 @@ def test_replayed_delivery_persists_exactly_one_row(pg_client):
         payload_action = conn.execute(
             "SELECT payload->>'action' FROM webhook_events WHERE delivery_id = %s", (delivery,)
         ).fetchone()[0]
+        review_count = conn.execute("SELECT count(*) FROM reviews").fetchone()[0]
     assert count == 1
     assert payload_action == "opened"
+    # Three deliveries of one event, one review — the dedup holds end to end.
+    assert review_count == 1
 
 
 def test_bad_signature_rejected_and_nothing_persisted(pg_client):
@@ -100,4 +111,7 @@ def test_bad_signature_rejected_and_nothing_persisted(pg_client):
     assert response.status_code == 401
     with db._connect() as conn:
         count = conn.execute("SELECT count(*) FROM webhook_events").fetchone()[0]
+        review_count = conn.execute("SELECT count(*) FROM reviews").fetchone()[0]
     assert count == 0
+    # An unsigned caller must not be able to make us spend a review either.
+    assert review_count == 0
