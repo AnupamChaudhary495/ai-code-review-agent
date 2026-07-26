@@ -255,18 +255,52 @@ Markdown that was read end-to-end and posted in the Phase 8 write-up. 48 tests
 cover the dedup rule in both directions, Markdown well-formedness, and
 Markdown/JSON agreement on every finding.
 
-## Phase 9 — Webhook-Triggered Automation & Async Processing ⬜ pending
+## Phase 9 — Webhook-Triggered Automation & Async Processing ✅ done
 
 **Goal:** Move from manual trigger to a real automated service.
 
-- Wire ingested `webhook_events` to the review pipeline (the ingest endpoint
-  currently stores events; nothing consumes them yet).
-- Async job handling so webhook responses return fast (202 Accepted) while the
-  review runs in the background.
-- API endpoints: trigger review, fetch review status/result, list history.
+- `pipeline.py`: the job that finally consumes `webhook_events` —
+  `fetch_pr_diff → graph.review_files → report_for_pull_request →
+  delivery.post_report`, a plain **sync** function (every step is blocking I/O,
+  so `async def` would only add the duty of keeping it off the event loop).
+  It **never raises**: a background task has nowhere to raise *to*, so every
+  failure is recorded on the review row and logged.
+- Trigger filter: only `pull_request` with action **opened / synchronize /
+  reopened**. Every other action and event type is still stored exactly as
+  Phase 2 stored it and triggers nothing — pinned from both sides by tests.
+- `ingest.py` returns **202 Accepted** with a `review_id` for a triggering
+  event; duplicates still answer `duplicate`, non-triggering events still
+  answer `stored`. Unreadable PR payloads store and return 200 without
+  scheduling.
+- Minimal `reviews` table: id, repo, pr_number, head_sha, status
+  (pending/running/completed/failed), report JSONB, error, review_url,
+  timestamps. **No** state machine, **no** partial unique constraint — Phase 10.
+- Duplicate guard: `WHERE NOT EXISTS` inside the INSERT blocks a second run for
+  a (repo, head_sha) that already has a pending/running/**completed** review.
+  `failed` is deliberately not blocking — retry is the normal case. Documented
+  as a stopgap, **not** race-proof under concurrency.
+- `api.py`: `POST /reviews` (manual re-run, 409 + `force=true` escape hatch),
+  `GET /reviews/{id}` (status + report), `GET /reviews` (history, filterable by
+  repo/pr_number/status, paginated, report bodies omitted). Manual and webhook
+  reviews run the *same* job — there is no second code path.
+- `delivery.post_report` added: driving the Phase 8 report through Phase 4's
+  per-file `post_review` would have posted **N reviews for an N-file PR**. The
+  new entry point posts **one** review — the Phase 8 Markdown as the body, plus
+  inline comments where findings anchor to the diff. `post_review` is untouched.
+- The report is stored **before** delivery is attempted, so a GitHub failure
+  costs the comment and not the analysis.
+- ADR: `docs/design-decisions/0004-in-process-background-review-jobs.md`,
+  including the accepted gap — an in-process task dies with the process, and a
+  restart mid-review strands that row at `running` until someone re-runs it.
 
-**Exit criteria:** Opening/updating a real PR triggers an automatic end-to-end
-review, no manual steps.
+**Exit criteria:** ✅ One signed `pull_request/opened` delivery to the real app,
+no manual step: 202 in ~15 ms → background job runs the real fetcher, graph,
+synthesis and delivery → 13 files, 11 raw findings deduplicated to 10, verdict
+`blocking` → **one** POST to `/pulls/128/reviews` carrying 4.4 KB of Phase 8
+Markdown and 10 inline comments → `GET /reviews/1` returns `completed` with the
+report, `GET /reviews?repo=…` lists it. 255 tests pass; 17 PostgreSQL
+integration tests (the `reviews` SQL, the guard, JSONB round-trip) run in CI.
+Live LLM + a real GitHub PR remain gated on an API key, as in Phases 4/6/7.
 
 ## Phase 10 — Persistence, Idempotency & Observability ⬜ pending
 

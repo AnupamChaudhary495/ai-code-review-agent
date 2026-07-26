@@ -124,3 +124,126 @@ def test_empty_findings_posts_clean_bill(stub_provider, change):
     (payload,) = captured
     assert payload["comments"] == []
     assert "no issues found" in payload["body"]
+
+
+# ---------------------------------------------------------------------------
+# post_report (Phase 9): one ReviewReport -> ONE review, not one per file
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def multi_file_report(change):
+    """A two-file report over real parsed diffs, so anchoring is real."""
+    from review_agent.agent.state import FileReviewResult
+    from review_agent.reporting import build_report
+
+    other = parser.parse_file(
+        next(f for f in load_fixture("pr_edge_files.json") if f["filename"] == "new_file.py")
+    )
+    anchor = min(change.hunks[0].new_lines())
+    results = [
+        FileReviewResult(
+            path=change.path,
+            status="reviewed",
+            source="bug",
+            findings=[finding(anchor), finding(999999, "medium")],
+        ),
+        FileReviewResult(
+            path=other.path,
+            status="reviewed",
+            source="security",
+            findings=[
+                Finding(
+                    file=other.path,
+                    line=None,
+                    category="security",
+                    severity="critical",
+                    message="A file-level security concern.",
+                )
+            ],
+        ),
+    ]
+    report = build_report(results, [change, other], repo="octo/demo", pr_number=7)
+    return report, [change, other], anchor
+
+
+def test_post_report_posts_one_review_for_the_whole_pr(stub_provider, multi_file_report):
+    report, files, anchor = multi_file_report
+    captured: list[dict] = []
+
+    url = delivery.post_report(
+        "octo/demo", 7, INSTALLATION_ID, report, files, transport=capture_transport(captured, [200])
+    )
+
+    # ONE request, not one per file — the regression this guards against.
+    assert len(captured) == 1
+    (payload,) = captured
+    assert payload["event"] == "COMMENT"
+    assert url.endswith("pullrequestreview-1")
+
+    # The body IS the Phase 8 report, posted as-is.
+    from review_agent.reporting import render_markdown
+
+    assert payload["body"] == render_markdown(report)
+    assert "<!-- review-agent -->" in payload["body"]
+
+
+def test_post_report_anchors_only_findings_that_land_in_the_diff(stub_provider, multi_file_report):
+    report, files, anchor = multi_file_report
+    captured: list[dict] = []
+
+    delivery.post_report(
+        "octo/demo", 7, INSTALLATION_ID, report, files, transport=capture_transport(captured, [200])
+    )
+
+    (payload,) = captured
+    # Only the in-diff line anchors. The out-of-range line and the file-level
+    # finding stay in the body, where the rendered report already carries them.
+    assert [(c["path"], c["line"]) for c in payload["comments"]] == [("long_module.py", anchor)]
+    assert payload["comments"][0]["side"] == "RIGHT"
+    # Every finding is still accounted for in the body.
+    assert payload["body"].count("Something is wrong") == 2
+    assert "A file-level security concern." in payload["body"]
+
+
+def test_post_report_422_falls_back_to_body_only(stub_provider, multi_file_report):
+    report, files, _ = multi_file_report
+    captured: list[dict] = []
+
+    delivery.post_report(
+        "octo/demo",
+        7,
+        INSTALLATION_ID,
+        report,
+        files,
+        transport=capture_transport(captured, [422, 200]),
+    )
+
+    assert len(captured) == 2
+    assert captured[0]["comments"]
+    assert captured[1]["comments"] == []
+    # The report body survives the fallback intact — nothing is lost.
+    assert captured[1]["body"] == captured[0]["body"]
+
+
+def test_post_report_on_a_clean_review_still_posts(stub_provider, change):
+    from review_agent.agent.state import FileReviewResult
+    from review_agent.reporting import build_report
+
+    report = build_report(
+        [FileReviewResult(path=change.path, status="reviewed", source="bug")], [change]
+    )
+    captured: list[dict] = []
+
+    delivery.post_report(
+        "octo/demo",
+        7,
+        INSTALLATION_ID,
+        report,
+        [change],
+        transport=capture_transport(captured, [200]),
+    )
+
+    (payload,) = captured
+    assert payload["comments"] == []
+    assert "found no issues" in payload["body"]

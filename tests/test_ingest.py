@@ -15,18 +15,27 @@ def post_event(client, sign, payload, *, delivery, event="pull_request", secret=
 
 
 def test_stores_new_delivery(client, sign, pr_event, fake_store):
+    """A triggering event is still stored — it now also answers 202 (Phase 9)."""
     response = post_event(client, sign, pr_event(), delivery="guid-1")
-    assert response.status_code == 200
-    assert response.json() == {"status": "stored", "delivery_id": "guid-1"}
+    assert response.status_code == 202
+    assert response.json()["status"] == "review_scheduled"
+    assert response.json()["delivery_id"] == "guid-1"
     stored = fake_store.webhook_events["guid-1"]
     assert stored["event"] == "pull_request"
     assert stored["action"] == "opened"
 
 
+def test_non_triggering_action_is_stored_with_the_phase_2_answer(client, sign, pr_event):
+    """`closed` has no new code to review; the original 200/stored is unchanged."""
+    response = post_event(client, sign, pr_event(action="closed"), delivery="guid-closed")
+    assert response.status_code == 200
+    assert response.json() == {"status": "stored", "delivery_id": "guid-closed"}
+
+
 def test_replayed_delivery_is_noop(client, sign, pr_event, fake_store):
     first = post_event(client, sign, pr_event(), delivery="guid-dup")
     second = post_event(client, sign, pr_event(), delivery="guid-dup")
-    assert first.json()["status"] == "stored"
+    assert first.json()["status"] == "review_scheduled"
     assert second.status_code == 200
     assert second.json()["status"] == "duplicate"
     assert len(fake_store.webhook_events) == 1
